@@ -129,9 +129,49 @@ function drawCharts(ensaio) {
   );
 }
 
+const FREQ_COLORS = ["#60a5fa", "#f472b6", "#facc15", "#4ade80", "#c084fc", "#fb923c"];
+
+function mean(values) {
+  const clean = values.filter((v) => typeof v === "number" && !Number.isNaN(v));
+  if (!clean.length) return null;
+  return clean.reduce((a, b) => a + b, 0) / clean.length;
+}
+
+// Um ponto por (ensaio, frequência): média da grandeza pedida entre todas as
+// leituras daquele ensaio naquela frequência (todas as durações/duty juntos).
+function buildFrequencyComparison(data, metric) {
+  const ensaios = [...new Set(data.map((r) => r.ensaio))].sort((a, b) => a - b);
+  const freqs = [...new Set(data.map((r) => r.frequencia_hz))].sort((a, b) => a - b);
+
+  const datasets = freqs.map((freq, i) => ({
+    label: `${freq / 1000} kHz`,
+    data: ensaios.map((ens) => mean(data.filter((r) => r.ensaio === ens && r.frequencia_hz === freq).map((r) => r[metric]))),
+    borderColor: FREQ_COLORS[i % FREQ_COLORS.length],
+    backgroundColor: FREQ_COLORS[i % FREQ_COLORS.length],
+    tension: 0.2,
+    spanGaps: true,
+  }));
+
+  return { labels: ensaios.map((e) => `Ensaio ${e}`), datasets };
+}
+
+function drawFrequencyCharts() {
+  [
+    { canvasId: "freqCorrente", metric: "corrente_a", title: "Corrente (A) por ensaio e frequência" },
+    { canvasId: "freqTensao", metric: "tensao_v", title: "Tensão (V) por ensaio e frequência" },
+    { canvasId: "freqPotencia", metric: "potencia_w", title: "Potência (W) por ensaio e frequência" },
+    { canvasId: "freqVibracao", metric: "accel_resultante_g", title: "Vibração (g) por ensaio e frequência" },
+    { canvasId: "freqAudio", metric: "audio_peak", title: "Áudio pico por ensaio e frequência" },
+  ].forEach(({ canvasId, metric, title }) => {
+    const { labels, datasets } = buildFrequencyComparison(rawData, metric);
+    lineChart(canvasId, labels, datasets, title);
+  });
+}
+
 Promise.all([loadRawFromSheet(), loadCsv(CLASS_CSV).catch(() => [])]).then(([raw, cls]) => {
   rawData = raw;
   classData = cls;
   populateSelect();
   renderTable();
+  drawFrequencyCharts();
 });
