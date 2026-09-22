@@ -86,7 +86,7 @@ corrente, vibração e áudio ao longo do tempo, além da tabela de
 classificação. Publique o repo inteiro no GitHub Pages — o dashboard
 referencia `../data/*.csv` diretamente.
 
-## Próximos ajustes a validar com você
+## Próximos ajustes para validar
 
 - Confirmar quais `ensaio`s já são motores conhecidos-bons para o baseline.
 - Definir se `frequencia_hz`/`duty_percent` seguem sempre o mesmo roteiro de
