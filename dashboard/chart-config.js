@@ -1,11 +1,46 @@
-// Caminhos relativos aos CSVs gerados pelo pipeline (scripts/*.py).
-// Publique data/ junto com dashboard/ no GitHub Pages para esses fetches funcionarem.
-const RAW_CSV = "../data/raw_ensaios.csv";
+// Áudio/vibração/corrente vêm direto da planilha publicada (mesma URL do
+// scripts/fetch_sheet.py). Só a classificação continua vindo de um arquivo
+// do repositório, porque depende de rodar scripts/baseline.py + classify.py.
+const SHEET_URL =
+  "https://docs.google.com/spreadsheets/d/e/2PACX-1vQ1FV5aTG7GK9MAZyC-gswZ30Hi8E2WLaYRHLtUZQdsXi36iobdmBuC10pJ4a8Ckf8oUa0mboZn5zcc/pub?gid=335307542&single=true&output=csv";
 const CLASS_CSV = "../data/classificacao.csv";
+
+const NUMERIC_COLUMNS = [
+  "ensaio", "frequencia_hz", "segundo", "duty_percent",
+  "tensao_v", "corrente_a", "potencia_w",
+  "accel_x_g", "accel_y_g", "accel_z_g", "accel_resultante_g",
+  "gyro_x_dps", "gyro_y_dps", "gyro_z_dps",
+  "audio_rms", "audio_peak", "audio_freq_hz",
+  "wifi_rssi", "acs_ok", "mpu_ok", "audio_ok",
+];
 
 let rawData = [];
 let classData = [];
 const charts = {};
+
+// A planilha usa vírgula como separador decimal (locale BR).
+function toNumberBR(value) {
+  if (value === null || value === undefined || value === "") return NaN;
+  return parseFloat(String(value).trim().replace(",", "."));
+}
+
+function loadRawFromSheet() {
+  return fetch(SHEET_URL)
+    .then((r) => r.text())
+    .then((text) => {
+      const parsed = Papa.parse(text, { header: true, dynamicTyping: false, skipEmptyLines: true }).data;
+      return parsed
+        .map((row) => {
+          const out = { timestamp: row.timestamp, firmware: row.firmware };
+          NUMERIC_COLUMNS.forEach((col) => {
+            out[col] = toNumberBR(row[col]);
+          });
+          return out;
+        })
+        // mesmo filtro de qualidade do fetch_sheet.py: descarta leitura com sensor não pronto
+        .filter((row) => row.acs_ok === 1 && row.mpu_ok === 1 && row.audio_ok === 1);
+    });
+}
 
 function loadCsv(path) {
   return fetch(path)
@@ -94,7 +129,7 @@ function drawCharts(ensaio) {
   );
 }
 
-Promise.all([loadCsv(RAW_CSV), loadCsv(CLASS_CSV)]).then(([raw, cls]) => {
+Promise.all([loadRawFromSheet(), loadCsv(CLASS_CSV).catch(() => [])]).then(([raw, cls]) => {
   rawData = raw;
   classData = cls;
   populateSelect();
