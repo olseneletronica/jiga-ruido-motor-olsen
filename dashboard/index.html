@@ -9,6 +9,7 @@
 <style>
   body { font-family: system-ui, -apple-system, sans-serif; margin: 0; padding: 24px; background: #0f1115; color: #e6e6e6; }
   h1 { font-size: 1.4rem; margin-bottom: 4px; }
+  h2 { font-size: 1.1rem; }
   p.subtitle { color: #94a3b8; margin-top: 0; }
   select { background: #1a1d24; color: #e6e6e6; border: 1px solid #333; padding: 6px 10px; border-radius: 6px; margin: 12px 0; }
   .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(360px, 1fr)); gap: 20px; margin-top: 12px; }
@@ -18,40 +19,74 @@
   .status-OK { color: #4ade80; }
   .status-ATENCAO { color: #facc15; }
   .status-FALHA_PROVAVEL { color: #f87171; font-weight: 600; }
+  .tabs { margin: 16px 0 24px; }
+  .tab-btn { background: #1a1d24; color: #94a3b8; border: 1px solid #333; padding: 8px 16px; border-radius: 8px; margin-right: 8px; cursor: pointer; font-size: 0.95rem; }
+  .tab-btn.active { border-color: #60a5fa; color: #60a5fa; }
+  .checkbox-list { display: flex; flex-wrap: wrap; gap: 12px 20px; background: #1a1d24; border-radius: 12px; padding: 14px 16px; }
+  .checkbox-list label { display: inline-flex; align-items: center; gap: 6px; cursor: pointer; }
 </style>
 </head>
 <body>
   <h1>Jiga Ruído Motor — Olsen</h1>
-  <p class="subtitle">Corrente, vibração e áudio por ensaio, comparados com a referência de motores bons.</p>
+  <p class="subtitle">Corrente, tensão, potência, vibração e áudio por ensaio, comparados entre frequências e entre motores.</p>
 
-  <select id="ensaioSelect"></select>
+  <div class="tabs">
+    <button class="tab-btn active" data-tab="individual">Ensaio individual</button>
+    <button class="tab-btn" data-tab="comparar">Comparar ensaios</button>
+  </div>
 
-  <div class="grid">
-    <div class="card"><canvas id="chartCorrente"></canvas></div>
-    <div class="card"><canvas id="chartVibracao"></canvas></div>
-    <div class="card"><canvas id="chartAudio"></canvas></div>
-    <div class="card">
-      <h3 style="margin-top:0">Classificação dos ensaios</h3>
-      <table id="tabelaStatus">
-        <thead><tr><th>Ensaio</th><th>Status</th><th>Pontos suspeitos</th><th>z máx</th></tr></thead>
-        <tbody></tbody>
-      </table>
+  <section id="tab-individual" class="tab-panel">
+    <select id="ensaioSelect"></select>
+
+    <div class="grid">
+      <div class="card">
+        <h3 style="margin-top:0">Classificação dos ensaios</h3>
+        <table id="tabelaStatus">
+          <thead><tr><th>Ensaio</th><th>Status</th><th>Pontos suspeitos</th><th>z máx</th></tr></thead>
+          <tbody></tbody>
+        </table>
+      </div>
     </div>
-  </div>
 
-  <h2 style="margin-top:36px">Detalhamento por frequência (ensaio selecionado)</h2>
-  <p class="subtitle">Um bloco por frequência testada no ensaio, com corrente, tensão, potência, vibração e áudio lado a lado.</p>
-  <div id="freqDetailContainer"></div>
+    <h2 style="margin-top:36px">Comparação entre frequências, no ensaio selecionado</h2>
+    <p class="subtitle">Mesmo ensaio (mesmo motor), uma linha por frequência testada — mostra como a resposta do motor muda com a frequência de chaveamento.</p>
+    <div class="grid">
+      <div class="card"><canvas id="cmpCorrente"></canvas></div>
+      <div class="card"><canvas id="cmpTensao"></canvas></div>
+      <div class="card"><canvas id="cmpPotencia"></canvas></div>
+      <div class="card"><canvas id="cmpVibracao"></canvas></div>
+      <div class="card"><canvas id="cmpAudio"></canvas></div>
+    </div>
 
-  <h2 style="margin-top:36px">Comparação entre ensaios, por frequência</h2>
-  <p class="subtitle">Média de cada grandeza em cada ensaio, uma linha por frequência de chaveamento testada.</p>
-  <div class="grid">
-    <div class="card"><canvas id="freqCorrente"></canvas></div>
-    <div class="card"><canvas id="freqTensao"></canvas></div>
-    <div class="card"><canvas id="freqPotencia"></canvas></div>
-    <div class="card"><canvas id="freqVibracao"></canvas></div>
-    <div class="card"><canvas id="freqAudio"></canvas></div>
-  </div>
+    <h2 style="margin-top:36px">Detalhamento por frequência</h2>
+    <p class="subtitle">Um bloco por frequência testada no ensaio, com todas as grandezas lado a lado.</p>
+    <div id="freqDetailContainer"></div>
+  </section>
+
+  <section id="tab-comparar" class="tab-panel" style="display:none">
+    <p class="subtitle">Marque os ensaios (motores) que quer comparar entre si.</p>
+    <div id="ensaioCheckboxes" class="checkbox-list"></div>
+
+    <h2 style="margin-top:28px">Ensaios selecionados, por frequência</h2>
+    <p class="subtitle">Uma linha por ensaio marcado acima — compara diretamente os motores escolhidos.</p>
+    <div class="grid">
+      <div class="card"><canvas id="cmpEnsCorrente"></canvas></div>
+      <div class="card"><canvas id="cmpEnsTensao"></canvas></div>
+      <div class="card"><canvas id="cmpEnsPotencia"></canvas></div>
+      <div class="card"><canvas id="cmpEnsVibracao"></canvas></div>
+      <div class="card"><canvas id="cmpEnsAudio"></canvas></div>
+    </div>
+
+    <h2 style="margin-top:36px">Todos os ensaios, por frequência</h2>
+    <p class="subtitle">Média de cada grandeza em cada ensaio, uma linha por frequência de chaveamento testada.</p>
+    <div class="grid">
+      <div class="card"><canvas id="freqCorrente"></canvas></div>
+      <div class="card"><canvas id="freqTensao"></canvas></div>
+      <div class="card"><canvas id="freqPotencia"></canvas></div>
+      <div class="card"><canvas id="freqVibracao"></canvas></div>
+      <div class="card"><canvas id="freqAudio"></canvas></div>
+    </div>
+  </section>
 
 <script src="chart-config.js"></script>
 </body>
