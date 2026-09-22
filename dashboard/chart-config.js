@@ -126,9 +126,58 @@ function lineChart(canvasId, labels, datasets, title) {
   });
 }
 
+// Gráfico com os pontos BRUTOS (sem tirar média) — cada série usa pares
+// {x, y}, então séries de tamanhos/faixas diferentes (ex: frequências com
+// durações diferentes) funcionam sem precisar bater com o mesmo eixo X.
+function rawLineChart(canvasId, datasets, title, xTitle) {
+  const canvas = document.getElementById(canvasId);
+  if (!canvas) return;
+  if (charts[canvasId]) charts[canvasId].destroy();
+  charts[canvasId] = new Chart(canvas, {
+    type: "line",
+    data: { datasets },
+    options: {
+      responsive: true,
+      animation: false,
+      parsing: false,
+      plugins: {
+        title: { display: true, text: title, color: "#e6e6e6" },
+        legend: { labels: { color: "#e6e6e6" } },
+      },
+      scales: {
+        x: { type: "linear", ticks: { color: "#94a3b8" }, title: { display: true, text: xTitle, color: "#94a3b8" } },
+        y: { ticks: { color: "#94a3b8" } },
+      },
+    },
+  });
+}
+
+// Para cada valor de `seriesField` (ex: cada frequência, ou cada ensaio),
+// monta a série com todos os pontos brutos coletados (x = segundo, y = métrica).
+function buildRawSeriesByGroup(rows, seriesField, metric, seriesLabelFn) {
+  const seriesValues = [...new Set(rows.map((r) => r[seriesField]))].sort((a, b) => a - b);
+  return seriesValues.map((sv, i) => ({
+    label: seriesLabelFn(sv),
+    data: rows
+      .filter((r) => r[seriesField] === sv)
+      .sort((a, b) => a.segundo - b.segundo)
+      .map((r) => ({ x: r.segundo, y: r[metric] })),
+    borderColor: PALETTE[i % PALETTE.length],
+    backgroundColor: PALETTE[i % PALETTE.length],
+    tension: 0.2,
+    pointRadius: 2,
+  }));
+}
+
+function drawRawGroupedCharts(prefix, rows, seriesField, seriesLabelFn, titleSuffix) {
+  METRICS.forEach(({ key, suffix, label }) => {
+    const datasets = buildRawSeriesByGroup(rows, seriesField, key, seriesLabelFn);
+    rawLineChart(`${prefix}${suffix}`, datasets, `${label} ${titleSuffix}`, "segundo");
+  });
+}
+
 // Agrupa `data` por (xField, seriesField) e tira a média de `metric` em cada
-// combinação. Usado tanto para "uma linha por frequência" quanto "uma linha
-// por ensaio", só trocando quem é eixo X e quem é série.
+// combinação. Usado no resumo agregado (todos os ensaios, por frequência).
 function buildGroupedMeans(data, xField, seriesField, metric, xLabelFn, seriesLabelFn) {
   const xValues = [...new Set(data.map((r) => r[xField]))].sort((a, b) => a - b);
   const seriesValues = [...new Set(data.map((r) => r[seriesField]))].sort((a, b) => a - b);
@@ -154,7 +203,6 @@ function drawGroupedCharts(prefix, data, xField, seriesField, xLabelFn, seriesLa
 
 const freqLabel = (f) => `${f / 1000} kHz`;
 const ensaioLabel = (e) => `Ensaio ${e}`;
-const dutyLabel = (d) => `${d}%`;
 
 // --- Aba "Ensaio individual" --------------------------------------------
 
@@ -172,8 +220,8 @@ function populateSelect() {
 function drawEnsaioView(ensaio) {
   const rows = rawData.filter((r) => String(r.ensaio) === String(ensaio));
 
-  // Uma linha por frequência, eixo X = duty cycle testado dentro do ensaio.
-  drawGroupedCharts("cmp", rows, "duty_percent", "frequencia_hz", dutyLabel, freqLabel, "— por frequência");
+  // Uma linha por frequência, com TODOS os pontos coletados (não uma média).
+  drawRawGroupedCharts("cmp", rows, "frequencia_hz", freqLabel, "— por frequência");
 
   renderFreqDetail(ensaio, rows);
 }
@@ -228,10 +276,50 @@ function renderEnsaioCheckboxes() {
   container.querySelectorAll("input").forEach((cb) => cb.addEventListener("change", updateComparador));
 }
 
+// Um bloco por frequência (como no detalhamento do ensaio individual), só
+// que aqui cada gráfico tem uma linha por ENSAIO em vez de uma métrica só —
+// assim compara os motores escolhidos sem misturar frequências diferentes
+// na mesma linha nem tirar média dos pontos coletados.
+function renderComparadorBlocks(rows) {
+  const container = document.getElementById("cmpEnsContainer");
+  container.innerHTML = "";
+
+  const freqs = [...new Set(rows.map((r) => r.frequencia_hz))].sort((a, b) => a - b);
+
+  if (!freqs.length) {
+    container.innerHTML = '<p class="subtitle">Marque pelo menos um ensaio acima.</p>';
+    return;
+  }
+
+  freqs.forEach((freq) => {
+    const freqRows = rows.filter((r) => r.frequencia_hz === freq);
+
+    const heading = document.createElement("h3");
+    heading.style.margin = "20px 0 4px";
+    heading.textContent = freqLabel(freq);
+    container.appendChild(heading);
+
+    const grid = document.createElement("div");
+    grid.className = "grid";
+    METRICS.forEach((m) => {
+      const card = document.createElement("div");
+      card.className = "card";
+      card.innerHTML = `<canvas id="cmpEns_${freq}_${m.key}"></canvas>`;
+      grid.appendChild(card);
+    });
+    container.appendChild(grid);
+
+    METRICS.forEach((m) => {
+      const datasets = buildRawSeriesByGroup(freqRows, "ensaio", m.key, ensaioLabel);
+      rawLineChart(`cmpEns_${freq}_${m.key}`, datasets, `${m.label} — ${freqLabel(freq)}`, "segundo");
+    });
+  });
+}
+
 function updateComparador() {
   const checked = Array.from(document.querySelectorAll("#ensaioCheckboxes input:checked")).map((i) => Number(i.value));
   const filtered = rawData.filter((r) => checked.includes(r.ensaio));
-  drawGroupedCharts("cmpEns", filtered, "frequencia_hz", "ensaio", freqLabel, ensaioLabel, "— comparação de ensaios");
+  renderComparadorBlocks(filtered);
 }
 
 // --- Inicialização --------------------------------------------------------
