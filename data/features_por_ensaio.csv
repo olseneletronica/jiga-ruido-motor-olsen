@@ -1,0 +1,4 @@
+ensaio,firmware,duracao_s,n_leituras,corrente_a_max,potencia_w_max,accel_resultante_g_max,audio_rms_max,audio_peak_max,corrente_a_std_geral,n_pontos_operacao
+1,V0.01,20,352,0.019,0.0,2.5092,0,0,0.0020769248755352085,5
+2,V0.01,1,2,0.013,0.0,1.05,0,0,0.002121320343559642,1
+5,V0.01,20,100,0.016,0.0,1.0779,0,0,0.0012978614889287857,5

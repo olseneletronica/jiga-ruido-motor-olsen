@@ -15,7 +15,7 @@ import pandas as pd
 SHEET_URL = (
     "https://docs.google.com/spreadsheets/d/e/"
     "2PACX-1vQ1FV5aTG7GK9MAZyC-gswZ30Hi8E2WLaYRHLtUZQdsXi36iobdmBuC10pJ4a8Ckf8oUa0mboZn5zcc/"
-    "pub?output=tsv"
+    "pub?gid=335307542&single=true&output=csv"
 )
 
 DATA_DIR = Path(__file__).resolve().parent.parent / "data"
@@ -32,7 +32,9 @@ EXPECTED_COLUMNS = [
 
 
 def fetch(url: str = SHEET_URL) -> pd.DataFrame:
-    df = pd.read_csv(url, sep="\t")
+    # A planilha publicada usa vírgula como separador decimal (locale BR),
+    # mesmo exportando em CSV (vírgula como delimitador de campo).
+    df = pd.read_csv(url, decimal=",")
     missing = set(EXPECTED_COLUMNS) - set(df.columns)
     if missing:
         raise ValueError(f"Colunas ausentes na planilha: {missing}")
