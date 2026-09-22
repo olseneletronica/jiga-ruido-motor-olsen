@@ -127,6 +127,56 @@ function drawCharts(ensaio) {
     [{ label: "Áudio RMS", data: rows.map((r) => r.audio_rms), borderColor: "#facc15", tension: 0.2 }],
     "Áudio ao longo do ensaio"
   );
+
+  renderFreqDetail(ensaio);
+}
+
+const DETAIL_METRICS = [
+  { key: "corrente_a", label: "Corrente (A)", color: "#60a5fa" },
+  { key: "tensao_v", label: "Tensão (V)", color: "#4ade80" },
+  { key: "potencia_w", label: "Potência (W)", color: "#c084fc" },
+  { key: "accel_resultante_g", label: "Vibração (g)", color: "#f472b6" },
+  { key: "audio_peak", label: "Áudio pico", color: "#facc15" },
+];
+
+// Para o ensaio selecionado, um bloco por frequência testada, com todas as
+// grandezas lado a lado (cada uma no seu próprio eixo, já que as escalas
+// são bem diferentes entre corrente, tensão, vibração etc).
+function renderFreqDetail(ensaio) {
+  const container = document.getElementById("freqDetailContainer");
+  container.innerHTML = "";
+
+  const rows = rawData.filter((r) => String(r.ensaio) === String(ensaio));
+  const freqs = [...new Set(rows.map((r) => r.frequencia_hz))].sort((a, b) => a - b);
+
+  freqs.forEach((freq) => {
+    const freqRows = rows.filter((r) => r.frequencia_hz === freq).sort((a, b) => a.segundo - b.segundo);
+    const labels = freqRows.map((r) => r.segundo);
+
+    const heading = document.createElement("h3");
+    heading.style.margin = "20px 0 4px";
+    heading.textContent = `${freq / 1000} kHz`;
+    container.appendChild(heading);
+
+    const grid = document.createElement("div");
+    grid.className = "grid";
+    DETAIL_METRICS.forEach((m) => {
+      const card = document.createElement("div");
+      card.className = "card";
+      card.innerHTML = `<canvas id="detail_${freq}_${m.key}"></canvas>`;
+      grid.appendChild(card);
+    });
+    container.appendChild(grid);
+
+    DETAIL_METRICS.forEach((m) => {
+      lineChart(
+        `detail_${freq}_${m.key}`,
+        labels,
+        [{ label: m.label, data: freqRows.map((r) => r[m.key]), borderColor: m.color, tension: 0.2 }],
+        `${m.label} — ${freq / 1000} kHz`
+      );
+    });
+  });
 }
 
 const FREQ_COLORS = ["#60a5fa", "#f472b6", "#facc15", "#4ade80", "#c084fc", "#fb923c"];
