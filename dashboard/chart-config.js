@@ -80,16 +80,17 @@ function renderSummaryCards() {
   const container = document.getElementById("summaryCards");
   const ensaios = [...new Set(rawData.map((r) => r.ensaio))];
   const freqs = [...new Set(rawData.map((r) => r.frequencia_hz))].sort((a, b) => a - b);
-  const discardRate = sensorStats.total ? (1 - sensorStats.clean / sensorStats.total) * 100 : 0;
+  const discarded = sensorStats.total - sensorStats.clean;
+  const discardRate = sensorStats.total ? (discarded / sensorStats.total) * 100 : 0;
   // Aproximação: maior número de ensaio como "mais recente" (assume numeração crescente).
   const ultimoEnsaio = ensaios.length ? Math.max(...ensaios) : "—";
 
   const cards = [
-    { label: "Ensaios registrados", value: ensaios.length || "—" },
-    { label: "Frequências testadas", value: freqs.length ? freqs.map(freqLabel).join(", ") : "—" },
-    { label: "Leituras válidas", value: sensorStats.clean },
-    { label: "Descarte por sensor", value: `${discardRate.toFixed(1)}%` },
-    { label: "Último ensaio", value: ultimoEnsaio },
+    { value: ensaios.length || "—", label: "Ensaios registrados" },
+    { value: freqs.length || "—", label: freqs.length ? freqs.map(freqLabel).join(", ") : "Frequências testadas" },
+    { value: METRICS.length, label: METRICS.map((m) => m.label).join(", ") },
+    { value: discarded, label: `descartadas — sensor não pronto na hora da leitura (${discardRate.toFixed(1)}%)` },
+    { value: ultimoEnsaio, label: "Último ensaio" },
   ];
 
   container.innerHTML = cards
