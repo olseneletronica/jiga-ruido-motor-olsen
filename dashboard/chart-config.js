@@ -85,17 +85,22 @@ function renderSummaryCards() {
   // Aproximação: maior número de ensaio como "mais recente" (assume numeração crescente).
   const ultimoEnsaio = ensaios.length ? Math.max(...ensaios) : "—";
 
-  const cards = [
-    { value: ensaios.length || "—", label: "Ensaios registrados" },
-    { value: freqs.length || "—", label: freqs.length ? freqs.map(freqLabel).join(", ") : "Frequências testadas" },
-    { value: METRICS.length, label: METRICS.map((m) => m.label).join(", ") },
-    { value: discarded, label: `descartadas — sensor não pronto na hora da leitura (${discardRate.toFixed(1)}%)` },
-    { value: ultimoEnsaio, label: "Último ensaio" },
-  ];
+  const statCard = (value, label) =>
+    `<div class="stat-card"><div class="stat-value">${value}</div><div class="stat-label">${label}</div></div>`;
 
-  container.innerHTML = cards
-    .map((c) => `<div class="stat-card"><div class="stat-value">${c.value}</div><div class="stat-label">${c.label}</div></div>`)
-    .join("");
+  const tagCard = (label, items) => `
+    <div class="stat-card">
+      <div class="stat-label">${label}</div>
+      <div class="tag-list">${items.map((i) => `<span>${i}</span>`).join("")}</div>
+    </div>`;
+
+  container.innerHTML = [
+    statCard(ensaios.length || "—", "ensaios registrados"),
+    tagCard("frequências testadas", freqs.length ? freqs.map(freqLabel) : ["—"]),
+    tagCard("grandezas monitoradas", METRICS.map((m) => m.label)),
+    statCard(`${discarded} (${discardRate.toFixed(1)}%)`, "descartadas por sensor"),
+    statCard(ultimoEnsaio, "último ensaio"),
+  ].join("");
 }
 
 // --- Classificação ------------------------------------------------------
