@@ -24,15 +24,22 @@
   .tab-btn.active { border-color: #60a5fa; color: #60a5fa; }
   .checkbox-list { display: flex; flex-wrap: wrap; gap: 12px 20px; background: #1a1d24; border-radius: 12px; padding: 14px 16px; }
   .checkbox-list label { display: inline-flex; align-items: center; gap: 6px; cursor: pointer; }
+  .stats-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 14px; margin: 16px 0 28px; }
+  .stat-card { background: #1a1d24; border-radius: 12px; padding: 14px 16px; }
+  .stat-value { font-size: 1.5rem; font-weight: 700; color: #60a5fa; }
+  .stat-label { color: #94a3b8; font-size: 0.8rem; margin-top: 2px; }
 </style>
 </head>
 <body>
   <h1>Jiga Ruído Motor — Olsen</h1>
   <p class="subtitle">Corrente, tensão, potência, vibração e áudio por ensaio, comparados entre frequências e entre motores.</p>
 
+  <div id="summaryCards" class="stats-grid"></div>
+
   <div class="tabs">
     <button class="tab-btn active" data-tab="individual">Ensaio individual</button>
     <button class="tab-btn" data-tab="comparar">Comparar ensaios</button>
+    <button class="tab-btn" data-tab="correlacoes">Correlações</button>
   </div>
 
   <section id="tab-individual" class="tab-panel">
@@ -72,13 +79,24 @@
     <div id="cmpEnsContainer"></div>
 
     <h2 style="margin-top:36px">Todos os ensaios, por frequência</h2>
-    <p class="subtitle">Média de cada grandeza em cada ensaio, uma linha por frequência de chaveamento testada.</p>
+    <p class="subtitle">Faixa mín–máx (área) e média (linha) de cada grandeza em cada ensaio, uma cor por frequência.</p>
     <div class="grid">
       <div class="card"><canvas id="freqCorrente"></canvas></div>
       <div class="card"><canvas id="freqTensao"></canvas></div>
       <div class="card"><canvas id="freqPotencia"></canvas></div>
       <div class="card"><canvas id="freqVibracao"></canvas></div>
       <div class="card"><canvas id="freqAudio"></canvas></div>
+    </div>
+  </section>
+
+  <section id="tab-correlacoes" class="tab-panel" style="display:none">
+    <p class="subtitle">Cada ponto é uma leitura; a cor indica o ensaio. Ajuda a ver se duas grandezas variam juntas e quais ensaios destoam do grupo.</p>
+    <div id="corrCheckboxes" class="checkbox-list"></div>
+
+    <div class="grid" style="margin-top:20px">
+      <div class="card"><canvas id="corrCorrenteVibracao"></canvas></div>
+      <div class="card"><canvas id="corrPotenciaAudio"></canvas></div>
+      <div class="card"><canvas id="corrCorrenteAudio"></canvas></div>
     </div>
   </section>
 

@@ -27,6 +27,7 @@ const PALETTE = ["#60a5fa", "#f472b6", "#facc15", "#4ade80", "#c084fc", "#fb923c
 
 let rawData = [];
 let classData = [];
+let sensorStats = { total: 0, clean: 0 };
 const charts = {};
 
 // A planilha usa vírgula como separador decimal (locale BR).
@@ -40,16 +41,17 @@ function loadRawFromSheet() {
     .then((r) => r.text())
     .then((text) => {
       const parsed = Papa.parse(text, { header: true, dynamicTyping: false, skipEmptyLines: true }).data;
-      return parsed
-        .map((row) => {
-          const out = { timestamp: row.timestamp, firmware: row.firmware };
-          NUMERIC_COLUMNS.forEach((col) => {
-            out[col] = toNumberBR(row[col]);
-          });
-          return out;
-        })
-        // mesmo filtro de qualidade do fetch_sheet.py: descarta leitura com sensor não pronto
-        .filter((row) => row.acs_ok === 1 && row.mpu_ok === 1 && row.audio_ok === 1);
+      const mapped = parsed.map((row) => {
+        const out = { timestamp: row.timestamp, firmware: row.firmware };
+        NUMERIC_COLUMNS.forEach((col) => {
+          out[col] = toNumberBR(row[col]);
+        });
+        return out;
+      });
+      // mesmo filtro de qualidade do fetch_sheet.py: descarta leitura com sensor não pronto
+      const clean = mapped.filter((row) => row.acs_ok === 1 && row.mpu_ok === 1 && row.audio_ok === 1);
+      sensorStats = { total: mapped.length, clean: clean.length };
+      return clean;
     });
 }
 
@@ -70,6 +72,29 @@ function setupTabs() {
       document.getElementById(`tab-${btn.dataset.tab}`).style.display = "";
     });
   });
+}
+
+// --- Cards de resumo ------------------------------------------------------
+
+function renderSummaryCards() {
+  const container = document.getElementById("summaryCards");
+  const ensaios = [...new Set(rawData.map((r) => r.ensaio))];
+  const freqs = [...new Set(rawData.map((r) => r.frequencia_hz))].sort((a, b) => a - b);
+  const discardRate = sensorStats.total ? (1 - sensorStats.clean / sensorStats.total) * 100 : 0;
+  // Aproximação: maior número de ensaio como "mais recente" (assume numeração crescente).
+  const ultimoEnsaio = ensaios.length ? Math.max(...ensaios) : "—";
+
+  const cards = [
+    { label: "Ensaios registrados", value: ensaios.length || "—" },
+    { label: "Frequências testadas", value: freqs.length ? freqs.map(freqLabel).join(", ") : "—" },
+    { label: "Leituras válidas", value: sensorStats.clean },
+    { label: "Descarte por sensor", value: `${discardRate.toFixed(1)}%` },
+    { label: "Último ensaio", value: ultimoEnsaio },
+  ];
+
+  container.innerHTML = cards
+    .map((c) => `<div class="stat-card"><div class="stat-value">${c.value}</div><div class="stat-label">${c.label}</div></div>`)
+    .join("");
 }
 
 // --- Classificação ------------------------------------------------------
@@ -116,13 +141,78 @@ function lineChart(canvasId, labels, datasets, title) {
       animation: false,
       plugins: {
         title: { display: true, text: title, color: "#e6e6e6" },
-        legend: { labels: { color: "#e6e6e6" } },
+        legend: {
+          labels: {
+            color: "#e6e6e6",
+            filter: (item, data) => !(data.datasets[item.datasetIndex] || {})._hideFromLegend,
+          },
+        },
       },
       scales: {
         x: { ticks: { color: "#94a3b8" } },
         y: { ticks: { color: "#94a3b8" } },
       },
     },
+  });
+}
+
+// Monta, por série (ex: cada frequência), 3 datasets: mínimo (invisível),
+// máximo (preenche até o mínimo, formando a faixa sombreada) e a média
+// (linha sólida). Assim dá pra ver a variação natural entre motores, não só
+// o valor médio.
+function buildBandDatasets(data, xField, seriesField, metric, xLabelFn, seriesLabelFn) {
+  const xValues = [...new Set(data.map((r) => r[xField]))].sort((a, b) => a - b);
+  const seriesValues = [...new Set(data.map((r) => r[seriesField]))].sort((a, b) => a - b);
+
+  const datasets = [];
+  seriesValues.forEach((sv, i) => {
+    const color = PALETTE[i % PALETTE.length];
+    const perX = xValues.map((xv) => {
+      const vals = data
+        .filter((r) => r[xField] === xv && r[seriesField] === sv)
+        .map((r) => r[metric])
+        .filter((v) => typeof v === "number" && !Number.isNaN(v));
+      if (!vals.length) return { min: null, max: null, mean: null };
+      return { min: Math.min(...vals), max: Math.max(...vals), mean: mean(vals) };
+    });
+
+    datasets.push({
+      label: `${seriesLabelFn(sv)} (mín)`,
+      data: perX.map((p) => p.min),
+      borderColor: "transparent",
+      backgroundColor: "transparent",
+      pointRadius: 0,
+      fill: false,
+      spanGaps: true,
+      _hideFromLegend: true,
+    });
+    datasets.push({
+      label: `${seriesLabelFn(sv)} (faixa)`,
+      data: perX.map((p) => p.max),
+      borderColor: "transparent",
+      backgroundColor: `${color}26`,
+      pointRadius: 0,
+      fill: "-1",
+      spanGaps: true,
+      _hideFromLegend: true,
+    });
+    datasets.push({
+      label: seriesLabelFn(sv),
+      data: perX.map((p) => p.mean),
+      borderColor: color,
+      backgroundColor: color,
+      tension: 0.2,
+      spanGaps: true,
+    });
+  });
+
+  return { labels: xValues.map(xLabelFn), datasets };
+}
+
+function drawBandCharts(prefix, data, xField, seriesField, xLabelFn, seriesLabelFn, titleSuffix) {
+  METRICS.forEach(({ key, suffix, label }) => {
+    const { labels, datasets } = buildBandDatasets(data, xField, seriesField, key, xLabelFn, seriesLabelFn);
+    lineChart(`${prefix}${suffix}`, labels, datasets, `${label} ${titleSuffix}`);
   });
 }
 
@@ -173,31 +263,6 @@ function drawRawGroupedCharts(prefix, rows, seriesField, seriesLabelFn, titleSuf
   METRICS.forEach(({ key, suffix, label }) => {
     const datasets = buildRawSeriesByGroup(rows, seriesField, key, seriesLabelFn);
     rawLineChart(`${prefix}${suffix}`, datasets, `${label} ${titleSuffix}`, "segundo");
-  });
-}
-
-// Agrupa `data` por (xField, seriesField) e tira a média de `metric` em cada
-// combinação. Usado no resumo agregado (todos os ensaios, por frequência).
-function buildGroupedMeans(data, xField, seriesField, metric, xLabelFn, seriesLabelFn) {
-  const xValues = [...new Set(data.map((r) => r[xField]))].sort((a, b) => a - b);
-  const seriesValues = [...new Set(data.map((r) => r[seriesField]))].sort((a, b) => a - b);
-
-  const datasets = seriesValues.map((sv, i) => ({
-    label: seriesLabelFn(sv),
-    data: xValues.map((xv) => mean(data.filter((r) => r[xField] === xv && r[seriesField] === sv).map((r) => r[metric]))),
-    borderColor: PALETTE[i % PALETTE.length],
-    backgroundColor: PALETTE[i % PALETTE.length],
-    tension: 0.2,
-    spanGaps: true,
-  }));
-
-  return { labels: xValues.map(xLabelFn), datasets };
-}
-
-function drawGroupedCharts(prefix, data, xField, seriesField, xLabelFn, seriesLabelFn, titleSuffix) {
-  METRICS.forEach(({ key, suffix, label }) => {
-    const { labels, datasets } = buildGroupedMeans(data, xField, seriesField, key, xLabelFn, seriesLabelFn);
-    lineChart(`${prefix}${suffix}`, labels, datasets, `${label} ${titleSuffix}`);
   });
 }
 
@@ -322,6 +387,76 @@ function updateComparador() {
   renderComparadorBlocks(filtered);
 }
 
+// --- Aba "Correlações" -----------------------------------------------------
+
+function scatterChart(canvasId, datasets, title, xTitle, yTitle) {
+  const canvas = document.getElementById(canvasId);
+  if (!canvas) return;
+  if (charts[canvasId]) charts[canvasId].destroy();
+  charts[canvasId] = new Chart(canvas, {
+    type: "scatter",
+    data: { datasets },
+    options: {
+      responsive: true,
+      animation: false,
+      plugins: {
+        title: { display: true, text: title, color: "#e6e6e6" },
+        legend: { labels: { color: "#e6e6e6" } },
+      },
+      scales: {
+        x: { title: { display: true, text: xTitle, color: "#94a3b8" }, ticks: { color: "#94a3b8" } },
+        y: { title: { display: true, text: yTitle, color: "#94a3b8" }, ticks: { color: "#94a3b8" } },
+      },
+    },
+  });
+}
+
+// Uma cor por ensaio, pra enxergar se algum motor forma um grupo separado
+// dos demais (cluster distinto) nas duas grandezas comparadas.
+function buildScatterByEnsaio(rows, xKey, yKey) {
+  const ensaios = [...new Set(rows.map((r) => r.ensaio))].sort((a, b) => a - b);
+  return ensaios.map((e, i) => ({
+    label: ensaioLabel(e),
+    data: rows.filter((r) => r.ensaio === e).map((r) => ({ x: r[xKey], y: r[yKey] })),
+    backgroundColor: PALETTE[i % PALETTE.length],
+    pointRadius: 3,
+  }));
+}
+
+function renderCorrCheckboxes() {
+  const container = document.getElementById("corrCheckboxes");
+  const ensaios = [...new Set(rawData.map((r) => r.ensaio))].sort((a, b) => a - b);
+  container.innerHTML = ensaios.map((e) => `<label><input type="checkbox" value="${e}" checked> Ensaio ${e}</label>`).join("");
+  container.querySelectorAll("input").forEach((cb) => cb.addEventListener("change", updateCorrelacoes));
+}
+
+function updateCorrelacoes() {
+  const checked = Array.from(document.querySelectorAll("#corrCheckboxes input:checked")).map((i) => Number(i.value));
+  const rows = rawData.filter((r) => checked.includes(r.ensaio));
+
+  scatterChart(
+    "corrCorrenteVibracao",
+    buildScatterByEnsaio(rows, "corrente_a", "accel_resultante_g"),
+    "Corrente × Vibração",
+    "Corrente (A)",
+    "Vibração (g)"
+  );
+  scatterChart(
+    "corrPotenciaAudio",
+    buildScatterByEnsaio(rows, "potencia_w", "audio_peak"),
+    "Potência × Áudio pico",
+    "Potência (W)",
+    "Áudio pico"
+  );
+  scatterChart(
+    "corrCorrenteAudio",
+    buildScatterByEnsaio(rows, "corrente_a", "audio_peak"),
+    "Corrente × Áudio pico",
+    "Corrente (A)",
+    "Áudio pico"
+  );
+}
+
 // --- Inicialização --------------------------------------------------------
 
 setupTabs();
@@ -330,11 +465,16 @@ Promise.all([loadRawFromSheet(), loadCsv(CLASS_CSV).catch(() => [])]).then(([raw
   rawData = raw;
   classData = cls;
 
+  renderSummaryCards();
+
   populateSelect();
   renderTable();
 
   renderEnsaioCheckboxes();
   updateComparador();
 
-  drawGroupedCharts("freq", rawData, "ensaio", "frequencia_hz", ensaioLabel, freqLabel, "— por ensaio e frequência");
+  renderCorrCheckboxes();
+  updateCorrelacoes();
+
+  drawBandCharts("freq", rawData, "ensaio", "frequencia_hz", ensaioLabel, freqLabel, "— por ensaio e frequência");
 });
