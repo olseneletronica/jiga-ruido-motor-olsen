@@ -74,35 +74,6 @@ function setupTabs() {
   });
 }
 
-// --- Cards de resumo ------------------------------------------------------
-
-function renderSummaryCards() {
-  const container = document.getElementById("summaryCards");
-  const ensaios = [...new Set(rawData.map((r) => r.ensaio))];
-  const freqs = [...new Set(rawData.map((r) => r.frequencia_hz))].sort((a, b) => a - b);
-  const discarded = sensorStats.total - sensorStats.clean;
-  const discardRate = sensorStats.total ? (discarded / sensorStats.total) * 100 : 0;
-  // Aproximação: maior número de ensaio como "mais recente" (assume numeração crescente).
-  const ultimoEnsaio = ensaios.length ? Math.max(...ensaios) : "—";
-
-  const statCard = (value, label) =>
-    `<div class="stat-card"><div class="stat-value">${value}</div><div class="stat-label">${label}</div></div>`;
-
-  const tagCard = (label, items) => `
-    <div class="stat-card">
-      <div class="stat-label">${label}</div>
-      <div class="tag-list">${items.map((i) => `<span>${i}</span>`).join("")}</div>
-    </div>`;
-
-  container.innerHTML = [
-    statCard(ensaios.length || "—", "ensaios registrados"),
-    tagCard("frequências testadas", freqs.length ? freqs.map(freqLabel) : ["—"]),
-    tagCard("grandezas monitoradas", METRICS.map((m) => m.label)),
-    statCard(`${discarded} (${discardRate.toFixed(1)}%)`, "descartadas por sensor"),
-    statCard(ultimoEnsaio, "último ensaio"),
-  ].join("");
-}
-
 // --- Classificação ------------------------------------------------------
 
 function renderTable() {
@@ -269,6 +240,31 @@ function drawRawGroupedCharts(prefix, rows, seriesField, seriesLabelFn, titleSuf
   METRICS.forEach(({ key, suffix, label }) => {
     const datasets = buildRawSeriesByGroup(rows, seriesField, key, seriesLabelFn);
     rawLineChart(`${prefix}${suffix}`, datasets, `${label} ${titleSuffix}`, "segundo");
+  });
+}
+
+// Agrupa `data` por (xField, seriesField) e tira a média de `metric` em cada
+// combinação. Usado no resumo agregado (todos os ensaios, por frequência).
+function buildGroupedMeans(data, xField, seriesField, metric, xLabelFn, seriesLabelFn) {
+  const xValues = [...new Set(data.map((r) => r[xField]))].sort((a, b) => a - b);
+  const seriesValues = [...new Set(data.map((r) => r[seriesField]))].sort((a, b) => a - b);
+
+  const datasets = seriesValues.map((sv, i) => ({
+    label: seriesLabelFn(sv),
+    data: xValues.map((xv) => mean(data.filter((r) => r[xField] === xv && r[seriesField] === sv).map((r) => r[metric]))),
+    borderColor: PALETTE[i % PALETTE.length],
+    backgroundColor: PALETTE[i % PALETTE.length],
+    tension: 0.2,
+    spanGaps: true,
+  }));
+
+  return { labels: xValues.map(xLabelFn), datasets };
+}
+
+function drawGroupedCharts(prefix, data, xField, seriesField, xLabelFn, seriesLabelFn, titleSuffix) {
+  METRICS.forEach(({ key, suffix, label }) => {
+    const { labels, datasets } = buildGroupedMeans(data, xField, seriesField, key, xLabelFn, seriesLabelFn);
+    lineChart(`${prefix}${suffix}`, labels, datasets, `${label} ${titleSuffix}`);
   });
 }
 
@@ -470,8 +466,6 @@ setupTabs();
 Promise.all([loadRawFromSheet(), loadCsv(CLASS_CSV).catch(() => [])]).then(([raw, cls]) => {
   rawData = raw;
   classData = cls;
-
-  renderSummaryCards();
 
   populateSelect();
   renderTable();
