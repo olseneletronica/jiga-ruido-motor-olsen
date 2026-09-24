@@ -24,11 +24,22 @@
   .tab-btn.active { border-color: #60a5fa; color: #60a5fa; }
   .checkbox-list { display: flex; flex-wrap: wrap; gap: 12px 20px; background: #1a1d24; border-radius: 12px; padding: 14px 16px; }
   .checkbox-list label { display: inline-flex; align-items: center; gap: 6px; cursor: pointer; }
+  .topbar { display: flex; align-items: center; justify-content: space-between; gap: 20px; flex-wrap: wrap; margin-bottom: 4px; }
+  .topbar-title { flex: 1; min-width: 240px; }
+  .logo { height: 34px; width: auto; filter: invert(1) brightness(1.05); }
+  .refresh-btn { background: #1a1d24; color: #e6e6e6; border: 1px solid #333; padding: 8px 16px; border-radius: 8px; cursor: pointer; font-size: 0.9rem; white-space: nowrap; }
+  .refresh-btn:hover { border-color: #60a5fa; color: #60a5fa; }
 </style>
 </head>
 <body>
-  <h1>Jiga Ruído Motor — Olsen</h1>
-  <p class="subtitle">Corrente, tensão, potência, vibração e áudio por ensaio, comparados entre frequências e entre motores.</p>
+  <div class="topbar">
+    <img src="assets/olsen-logo.png" alt="Olsen" class="logo">
+    <div class="topbar-title">
+      <h1>Jiga Ruído Motor — Olsen</h1>
+      <p class="subtitle">Corrente, tensão, potência, vibração e áudio por ensaio, comparados entre frequências e entre motores.</p>
+    </div>
+    <button class="refresh-btn" onclick="location.reload()">⟳ Atualizar dados</button>
+  </div>
 
   <div class="tabs">
     <button class="tab-btn active" data-tab="individual">Ensaio individual</button>
