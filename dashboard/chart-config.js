@@ -7,27 +7,31 @@ const SHEET_URL =
 const CLASS_CSV = "../data/classificacao.csv";
 
 const NUMERIC_COLUMNS = [
-  "ensaio", "frequencia_hz", "segundo", "duty_percent",
+  "ensaio", "frequencia_hz", "segundo",
   "tensao_v", "corrente_a", "potencia_w",
   "accel_x_g", "accel_y_g", "accel_z_g", "accel_resultante_g",
   "gyro_x_dps", "gyro_y_dps", "gyro_z_dps",
-  "audio_rms", "audio_peak", "audio_freq_hz",
-  "wifi_rssi", "acs_ok", "mpu_ok", "audio_ok",
+  "audio1_dbfs", "audio1_peak_dbfs", "audio2_dbfs", "audio2_peak_dbfs",
 ];
 
 const METRICS = [
   { key: "corrente_a", suffix: "Corrente", label: "Corrente (A)" },
   { key: "tensao_v", suffix: "Tensao", label: "Tensão (V)" },
   { key: "potencia_w", suffix: "Potencia", label: "Potência (W)" },
-  { key: "accel_resultante_g", suffix: "Vibracao", label: "Vibração (g)" },
-  { key: "audio_peak", suffix: "Audio", label: "Áudio pico" },
+  { key: "accel_x_g", suffix: "VibX", label: "Vibração X (g)" },
+  { key: "accel_y_g", suffix: "VibY", label: "Vibração Y (g)" },
+  { key: "accel_z_g", suffix: "VibZ", label: "Vibração Z (g)" },
+  { key: "accel_resultante_g", suffix: "VibR", label: "Vibração resultante (g)" },
+  { key: "audio1_dbfs", suffix: "Audio1", label: "Áudio 1 (dBFS)" },
+  { key: "audio1_peak_dbfs", suffix: "Audio1Peak", label: "Áudio 1 pico (dBFS)" },
+  { key: "audio2_dbfs", suffix: "Audio2", label: "Áudio 2 (dBFS)" },
+  { key: "audio2_peak_dbfs", suffix: "Audio2Peak", label: "Áudio 2 pico (dBFS)" },
 ];
 
 const PALETTE = ["#60a5fa", "#f472b6", "#facc15", "#4ade80", "#c084fc", "#fb923c", "#38bdf8", "#f87171"];
 
 let rawData = [];
 let classData = [];
-let sensorStats = { total: 0, clean: 0 };
 const charts = {};
 
 // A planilha usa vírgula como separador decimal (locale BR).
@@ -41,17 +45,13 @@ function loadRawFromSheet() {
     .then((r) => r.text())
     .then((text) => {
       const parsed = Papa.parse(text, { header: true, dynamicTyping: false, skipEmptyLines: true }).data;
-      const mapped = parsed.map((row) => {
+      return parsed.map((row) => {
         const out = { timestamp: row.timestamp, firmware: row.firmware };
         NUMERIC_COLUMNS.forEach((col) => {
           out[col] = toNumberBR(row[col]);
         });
         return out;
       });
-      // mesmo filtro de qualidade do fetch_sheet.py: descarta leitura com sensor não pronto
-      const clean = mapped.filter((row) => row.acs_ok === 1 && row.mpu_ok === 1 && row.audio_ok === 1);
-      sensorStats = { total: mapped.length, clean: clean.length };
-      return clean;
     });
 }
 
@@ -243,31 +243,6 @@ function drawRawGroupedCharts(prefix, rows, seriesField, seriesLabelFn, titleSuf
   });
 }
 
-// Agrupa `data` por (xField, seriesField) e tira a média de `metric` em cada
-// combinação. Usado no resumo agregado (todos os ensaios, por frequência).
-function buildGroupedMeans(data, xField, seriesField, metric, xLabelFn, seriesLabelFn) {
-  const xValues = [...new Set(data.map((r) => r[xField]))].sort((a, b) => a - b);
-  const seriesValues = [...new Set(data.map((r) => r[seriesField]))].sort((a, b) => a - b);
-
-  const datasets = seriesValues.map((sv, i) => ({
-    label: seriesLabelFn(sv),
-    data: xValues.map((xv) => mean(data.filter((r) => r[xField] === xv && r[seriesField] === sv).map((r) => r[metric]))),
-    borderColor: PALETTE[i % PALETTE.length],
-    backgroundColor: PALETTE[i % PALETTE.length],
-    tension: 0.2,
-    spanGaps: true,
-  }));
-
-  return { labels: xValues.map(xLabelFn), datasets };
-}
-
-function drawGroupedCharts(prefix, data, xField, seriesField, xLabelFn, seriesLabelFn, titleSuffix) {
-  METRICS.forEach(({ key, suffix, label }) => {
-    const { labels, datasets } = buildGroupedMeans(data, xField, seriesField, key, xLabelFn, seriesLabelFn);
-    lineChart(`${prefix}${suffix}`, labels, datasets, `${label} ${titleSuffix}`);
-  });
-}
-
 const freqLabel = (f) => `${f / 1000} kHz`;
 const ensaioLabel = (e) => `Ensaio ${e}`;
 
@@ -439,23 +414,30 @@ function updateCorrelacoes() {
   scatterChart(
     "corrCorrenteVibracao",
     buildScatterByEnsaio(rows, "corrente_a", "accel_resultante_g"),
-    "Corrente × Vibração",
+    "Corrente × Vibração resultante",
     "Corrente (A)",
-    "Vibração (g)"
+    "Vibração resultante (g)"
   );
   scatterChart(
     "corrPotenciaAudio",
-    buildScatterByEnsaio(rows, "potencia_w", "audio_peak"),
-    "Potência × Áudio pico",
+    buildScatterByEnsaio(rows, "potencia_w", "audio1_peak_dbfs"),
+    "Potência × Áudio 1 pico",
     "Potência (W)",
-    "Áudio pico"
+    "Áudio 1 pico (dBFS)"
   );
   scatterChart(
     "corrCorrenteAudio",
-    buildScatterByEnsaio(rows, "corrente_a", "audio_peak"),
-    "Corrente × Áudio pico",
-    "Corrente (A)",
-    "Áudio pico"
+    buildScatterByEnsaio(rows, "potencia_w", "audio2_peak_dbfs"),
+    "Potência × Áudio 2 pico",
+    "Potência (W)",
+    "Áudio 2 pico (dBFS)"
+  );
+  scatterChart(
+    "corrAudio1Audio2",
+    buildScatterByEnsaio(rows, "audio1_peak_dbfs", "audio2_peak_dbfs"),
+    "Áudio 1 × Áudio 2 (pico)",
+    "Áudio 1 pico (dBFS)",
+    "Áudio 2 pico (dBFS)"
   );
 }
 

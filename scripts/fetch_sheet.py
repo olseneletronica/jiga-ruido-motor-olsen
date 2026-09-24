@@ -1,12 +1,14 @@
 """
 fetch_sheet.py — baixa os dados publicados do Google Sheets (aba DADOS) e
-gera um snapshot local em data/raw_ensaios.csv, descartando leituras em que
-algum sensor reportou falha (acs_ok / mpu_ok / audio_ok == 0).
+gera um snapshot local em data/raw_ensaios.csv.
+
+A partir do firmware V0.02 a jiga não envia mais duty_percent nem os flags
+de saúde de sensor (acs_ok/mpu_ok/audio_ok) — e passou a ter dois
+microfones (audio1_dbfs/audio1_peak_dbfs, audio2_dbfs/audio2_peak_dbfs).
 
 Uso:
     python scripts/fetch_sheet.py
 """
-import sys
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -23,11 +25,10 @@ RAW_PATH = DATA_DIR / "raw_ensaios.csv"
 
 EXPECTED_COLUMNS = [
     "timestamp", "firmware", "ensaio", "frequencia_hz", "segundo",
-    "duty_percent", "tensao_v", "corrente_a", "potencia_w",
+    "tensao_v", "corrente_a", "potencia_w",
     "accel_x_g", "accel_y_g", "accel_z_g", "accel_resultante_g",
     "gyro_x_dps", "gyro_y_dps", "gyro_z_dps",
-    "audio_rms", "audio_peak", "audio_freq_hz",
-    "wifi_rssi", "acs_ok", "mpu_ok", "audio_ok",
+    "audio1_dbfs", "audio1_peak_dbfs", "audio2_dbfs", "audio2_peak_dbfs",
 ]
 
 
@@ -41,24 +42,9 @@ def fetch(url: str = SHEET_URL) -> pd.DataFrame:
     return df[EXPECTED_COLUMNS]
 
 
-def clean(df: pd.DataFrame) -> pd.DataFrame:
-    """Remove leituras onde algum sensor reportou falha na hora da coleta."""
-    before = len(df)
-    df = df[(df.acs_ok == 1) & (df.mpu_ok == 1) & (df.audio_ok == 1)].copy()
-    dropped = before - len(df)
-    if dropped:
-        print(
-            f"[fetch_sheet] {dropped} linha(s) descartada(s) por falha de sensor "
-            f"(acs_ok/mpu_ok/audio_ok).",
-            file=sys.stderr,
-        )
-    return df
-
-
 def main():
     DATA_DIR.mkdir(parents=True, exist_ok=True)
     df = fetch()
-    df = clean(df)
     df.to_csv(RAW_PATH, index=False)
     print(
         f"[fetch_sheet] {len(df)} linhas salvas em {RAW_PATH} "

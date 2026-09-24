@@ -1,7 +1,7 @@
 """
 classify.py — compara cada ensaio contra a referência (baseline.json) e
 gera um status de saúde por ensaio, combinando o desvio de corrente,
-vibração e áudio em cada ponto de operação testado.
+vibração e áudio (dos dois microfones) em cada frequência testada.
 
 Uso:
     python scripts/classify.py
@@ -22,23 +22,24 @@ OUT_PATH = DATA_DIR / "classificacao.csv"
 REF_COLUMNS = [
     "corrente_a_mean", "potencia_w_mean",
     "accel_resultante_g_mean", "accel_resultante_g_max",
-    "audio_rms_mean", "audio_peak_mean",
+    "audio1_peak_dbfs_mean", "audio2_peak_dbfs_mean",
 ]
 
 # Acima de quantos desvios-padrão da referência um canal conta como suspeito.
 # Ajuste este valor observando a distribuição real dos ensaios conhecidos-bons.
 Z_THRESHOLD = 3.0
 
-# Fração de pontos suspeitos acima da qual o ensaio vira "falha provável"
+# Fração de frequências suspeitas acima da qual o ensaio vira "falha provável"
 # em vez de apenas "atenção".
 FALHA_FRACAO = 0.3
 
 
 def zscore_point(row, ref):
-    key = f"{row.frequencia_hz}_{row.duty_percent}"
-    r = ref.get(key)
+    # iterrows() pode promover a linha inteira a float64 mesmo quando a
+    # coluna original é inteira — arredonda antes de montar a chave.
+    r = ref.get(str(int(round(row.frequencia_hz))))
     if r is None:
-        return None  # ponto de operação ainda sem referência
+        return None  # frequência ainda sem referência
     zscores = {}
     for col in REF_COLUMNS:
         mean = r.get(f"{col}_ref_mean")
@@ -63,7 +64,6 @@ def main():
         rows.append({
             "ensaio": row.ensaio,
             "frequencia_hz": row.frequencia_hz,
-            "duty_percent": row.duty_percent,
             "z_max": max(z.values()) if z else np.nan,
             "canais_suspeitos": n_suspeitos,
             **{f"z_{col}": v for col, v in z.items()},
@@ -71,9 +71,8 @@ def main():
 
     if not rows:
         raise SystemExit(
-            "[classify] Nenhum ponto do dataset bate com pontos de operação da "
-            "referência. Rode scripts/baseline.py com ensaios que cubram os "
-            "mesmos (frequencia_hz, duty_percent) testados aqui."
+            "[classify] Nenhuma frequência do dataset bate com a referência. "
+            "Rode scripts/baseline.py com ensaios que cubram as mesmas frequências testadas aqui."
         )
 
     detail_df = pd.DataFrame(rows)
