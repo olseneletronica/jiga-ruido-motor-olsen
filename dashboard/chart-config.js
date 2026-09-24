@@ -41,7 +41,10 @@ function toNumberBR(value) {
 }
 
 function loadRawFromSheet() {
-  return fetch(SHEET_URL)
+  // Cache-buster: o Google serve o link publicado por vários servidores de
+  // borda (CDN), então sem isso às vezes vem uma resposta desatualizada.
+  const url = `${SHEET_URL}&_=${Date.now()}`;
+  return fetch(url)
     .then((r) => r.text())
     .then((text) => {
       const parsed = Papa.parse(text, { header: true, dynamicTyping: false, skipEmptyLines: true }).data;
