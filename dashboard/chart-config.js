@@ -3,7 +3,7 @@
 // de um arquivo do repositório, porque depende de rodar
 // scripts/baseline.py + classify.py.
 const SHEET_URL =
-  "https://docs.google.com/spreadsheets/d/e/2PACX-1vQ1FV5aTG7GK9MAZyC-gswZ30Hi8E2WLaYRHLtUZQdsXi36iobdmBuC10pJ4a8Ckf8oUa0mboZn5zcc/pub?gid=335307542&single=true&output=csv";
+  "https://docs.google.com/spreadsheets/d/e/2PACX-1vQTMpNhTj0nChxxTd533XNVJ1VwZnuRjwkxWBqSovBnNyGqcx3iw6LKpNmQJ-6uqZh4FbicZd45c3vd/pub?gid=1456190640&single=true&output=csv";
 const CLASS_CSV = "../data/classificacao.csv";
 
 const NUMERIC_COLUMNS = [
